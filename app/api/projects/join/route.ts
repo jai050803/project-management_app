@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     }
 
     const existingMember = project.members.find(
-      (m) => m.name.toLowerCase() === memberName.toLowerCase()
+      (m: { name: string }) => m.name.toLowerCase() === memberName.toLowerCase()
     );
 
     const member =
