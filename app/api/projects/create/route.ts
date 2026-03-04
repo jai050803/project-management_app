@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateProjectCode } from "@/lib/utils";
 
@@ -42,8 +43,32 @@ export async function POST(req: Request) {
       projectId: project.id,
       memberId: project.members[0]?.id
     });
-  } catch {
-    return NextResponse.json({ error: "Unable to create project." }, { status: 500 });
+  } catch (error) {
+    console.error("Project create failed:", error);
+
+    if (error instanceof Prisma.PrismaClientInitializationError) {
+      return NextResponse.json(
+        {
+          error:
+            "Database not initialized in deployment. Set DATABASE_URL and run Prisma migrations on production DB."
+        },
+        { status: 500 }
+      );
+    }
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return NextResponse.json(
+        {
+          error: `Database request failed (${error.code}). Check Vercel logs and DATABASE_URL.`
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Unable to create project. Check server logs for DB error." },
+      { status: 500 }
+    );
   }
 }
 
