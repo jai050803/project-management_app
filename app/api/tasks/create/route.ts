@@ -34,8 +34,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });
     }
     return NextResponse.json(created);
-  } catch {
-    return NextResponse.json({ error: "Unable to create task." }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

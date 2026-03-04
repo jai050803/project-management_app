@@ -18,8 +18,9 @@ export async function POST(req: Request, { params }: Params) {
     if (!ok) return NextResponse.json({ error: "Task not found." }, { status: 404 });
 
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ error: "Unable to add update." }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

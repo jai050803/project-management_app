@@ -55,10 +55,15 @@ function newId() {
 function getSupabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    throw new Error("Supabase env missing: set NEXT_PUBLIC_SUPABASE_URL and publishable anon key.");
+    throw new Error(
+      "Supabase env missing. Set NEXT_PUBLIC_SUPABASE_URL and one key: SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY."
+    );
   }
 
   return {
@@ -98,7 +103,32 @@ async function supabaseRequest<T>({
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Supabase request failed (${res.status}): ${text}`);
+    let message = text;
+    try {
+      const parsed = JSON.parse(text) as {
+        message?: string;
+        code?: string;
+        details?: string;
+        hint?: string;
+      };
+      message = [parsed.message, parsed.code, parsed.details, parsed.hint].filter(Boolean).join(" | ");
+    } catch {
+      // Keep raw text when response is not JSON.
+    }
+
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(
+        `Supabase permission denied (${res.status}). ${message}. Check RLS policies or set SUPABASE_SERVICE_ROLE_KEY in Vercel env.`
+      );
+    }
+
+    if (res.status === 404) {
+      throw new Error(
+        `Supabase table/endpoint not found (${res.status}). ${message}. Run supabase/schema.sql in your Supabase SQL editor.`
+      );
+    }
+
+    throw new Error(`Supabase request failed (${res.status}): ${message}`);
   }
 
   const raw = await res.text();
@@ -433,4 +463,3 @@ export async function getTaskDetail(taskId: string) {
     updates: updatesRows.map(mapTaskUpdate)
   };
 }
-
