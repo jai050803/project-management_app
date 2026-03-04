@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateProjectCode } from "@/lib/utils";
 
@@ -43,10 +42,15 @@ export async function POST(req: Request) {
       projectId: project.id,
       memberId: project.members[0]?.id
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Project create failed:", error);
+    const message = error instanceof Error ? error.message : "";
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: string }).code)
+        : "";
 
-    if (error instanceof Prisma.PrismaClientInitializationError) {
+    if (message.toLowerCase().includes("database") || message.toLowerCase().includes("prisma client")) {
       return NextResponse.json(
         {
           error:
@@ -56,10 +60,10 @@ export async function POST(req: Request) {
       );
     }
 
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (code) {
       return NextResponse.json(
         {
-          error: `Database request failed (${error.code}). Check Vercel logs and DATABASE_URL.`
+          error: `Database request failed (${code}). Check Vercel logs and DATABASE_URL.`
         },
         { status: 500 }
       );
