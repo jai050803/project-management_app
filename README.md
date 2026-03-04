@@ -14,7 +14,7 @@ A lightweight project management dashboard for small teams:
 npm install
 copy .env.example .env
 npx prisma generate
-npx prisma migrate dev --name init
+npx prisma migrate dev
 npm run dev
 ```
 
@@ -28,42 +28,20 @@ npm run prisma:seed
 
 ## 2. Deployment (Vercel)
 
-This app can deploy to Vercel, but for production use a hosted Postgres DB.
-
-### Recommended production DB switch
-
-1. Replace datasource in `prisma/schema.prisma`:
-
-```prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-```
-
-2. Create a Neon / Supabase / Vercel Postgres database.
-3. Add `DATABASE_URL` in Vercel project environment variables.
-4. Run migration to production DB:
+1. Create a Postgres DB (Vercel Postgres, Neon, Supabase, etc.).
+2. In Vercel project env vars, set `DATABASE_URL`.
+3. Deploy:
 
 ```bash
-npx prisma migrate deploy
+npx vercel --prod
 ```
 
-### Deploy steps
+This repo includes a `vercel-build` script that runs:
+- `prisma generate`
+- `prisma migrate deploy`
+- `next build`
 
-```bash
-npm i -g vercel
-vercel
-```
-
-During first deploy, configure env vars:
-- `DATABASE_URL`
-
-For every production deploy:
-
-```bash
-vercel --prod
-```
+So tables are initialized automatically during deployment.
 
 ## 3. Important note on uploads
 
