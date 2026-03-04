@@ -1,7 +1,7 @@
 "use client";
 
-import { TaskPriority, TaskStatus } from "@prisma/client";
 import { useState } from "react";
+import { TaskPriority, TaskStatus } from "@/lib/types";
 
 type Member = { id: string; name: string };
 type Attachment = { id: string; type: string; name: string; url: string };

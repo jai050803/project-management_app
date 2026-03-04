@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { joinProject } from "@/lib/data";
 
 export async function POST(req: Request) {
   try {
@@ -16,33 +16,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const project = await prisma.project.findUnique({
-      where: { code },
-      include: { members: true }
-    });
-
-    if (!project) {
+    const joined = joinProject(code, memberName);
+    if (!joined) {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });
     }
 
-    const existingMember = project.members.find(
-      (m: { name: string }) => m.name.toLowerCase() === memberName.toLowerCase()
-    );
-
-    const member =
-      existingMember ||
-      (await prisma.member.create({
-        data: {
-          name: memberName,
-          projectId: project.id
-        }
-      }));
-
-    return NextResponse.json({
-      projectCode: project.code,
-      projectId: project.id,
-      memberId: member.id
-    });
+    return NextResponse.json(joined);
   } catch {
     return NextResponse.json({ error: "Unable to join project." }, { status: 500 });
   }

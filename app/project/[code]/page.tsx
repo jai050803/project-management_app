@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { getProjectByCode } from "@/lib/data";
 import { Dashboard } from "@/components/dashboard";
 
 type Params = {
@@ -13,30 +13,11 @@ export default async function ProjectPage({ params, searchParams }: Params) {
   const code = codeParam.toUpperCase();
   const { member } = await searchParams;
 
-  const project = await prisma.project.findUnique({
-    where: { code },
-    include: {
-      members: true,
-      tasks: {
-        include: {
-          assignee: true
-        },
-        orderBy: [{ status: "asc" }, { createdAt: "desc" }]
-      }
-    }
-  });
+  const project = getProjectByCode(code);
 
   if (!project) {
     notFound();
   }
-
-  const serializedProject = {
-    ...project,
-    tasks: project.tasks.map((task) => ({
-      ...task,
-      deadline: task.deadline ? task.deadline.toISOString() : null
-    }))
-  };
 
   return (
     <main className="container-shell">
@@ -52,7 +33,7 @@ export default async function ProjectPage({ params, searchParams }: Params) {
           Switch Project
         </Link>
       </div>
-      <Dashboard project={serializedProject} activeMemberId={member ?? ""} />
+      <Dashboard project={project} activeMemberId={member ?? ""} />
     </main>
   );
 }

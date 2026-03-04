@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { getProjectByCode, getTaskDetail } from "@/lib/data";
 import { TaskDetail } from "@/components/task-detail";
 
 type Params = {
@@ -13,41 +13,14 @@ export default async function TaskDetailPage({ params, searchParams }: Params) {
   const code = codeParam.toUpperCase();
   const { member } = await searchParams;
 
-  const project = await prisma.project.findUnique({
-    where: { code },
-    include: { members: true }
-  });
+  const project = getProjectByCode(code);
   if (!project) notFound();
 
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    include: {
-      assignee: true,
-      attachments: {
-        orderBy: { createdAt: "desc" }
-      },
-      updates: {
-        orderBy: { createdAt: "desc" }
-      }
-    }
-  });
+  const task = getTaskDetail(taskId);
 
   if (!task || task.projectId !== project.id) {
     notFound();
   }
-
-  const serializedTask = {
-    ...task,
-    deadline: task.deadline ? task.deadline.toISOString() : null,
-    attachments: task.attachments.map((item) => ({
-      ...item,
-      createdAt: item.createdAt.toISOString()
-    })),
-    updates: task.updates.map((item) => ({
-      ...item,
-      createdAt: item.createdAt.toISOString()
-    }))
-  };
 
   return (
     <main className="container-shell">
@@ -61,7 +34,7 @@ export default async function TaskDetailPage({ params, searchParams }: Params) {
       </div>
       <TaskDetail
         projectCode={project.code}
-        task={serializedTask}
+        task={task}
         members={project.members}
         activeMemberId={member ?? ""}
       />

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { addTaskAttachment } from "@/lib/data";
 
 type Params = { params: Promise<{ taskId: string }> };
 
@@ -18,14 +18,8 @@ export async function POST(req: Request, { params }: Params) {
         return NextResponse.json({ error: "Link is required." }, { status: 400 });
       }
 
-      await prisma.attachment.create({
-        data: {
-          type: "LINK",
-          name,
-          url: link,
-          taskId
-        }
-      });
+      const ok = addTaskAttachment(taskId, "LINK", name, link);
+      if (!ok) return NextResponse.json({ error: "Task not found." }, { status: 404 });
 
       return NextResponse.json({ ok: true });
     }
@@ -47,14 +41,8 @@ export async function POST(req: Request, { params }: Params) {
     const base64 = Buffer.from(bytes).toString("base64");
     const dataUrl = `data:${file.type || "application/octet-stream"};base64,${base64}`;
 
-    await prisma.attachment.create({
-      data: {
-        type: "FILE",
-        name: file.name,
-        url: dataUrl,
-        taskId
-      }
-    });
+    const ok = addTaskAttachment(taskId, "FILE", file.name, dataUrl);
+    if (!ok) return NextResponse.json({ error: "Task not found." }, { status: 404 });
 
     return NextResponse.json({ ok: true });
   } catch {

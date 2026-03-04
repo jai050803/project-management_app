@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { addTaskUpdate } from "@/lib/data";
 
 type Params = { params: Promise<{ taskId: string }> };
 
@@ -14,13 +14,8 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Author and message required." }, { status: 400 });
     }
 
-    await prisma.taskUpdate.create({
-      data: {
-        author,
-        message,
-        taskId
-      }
-    });
+    const ok = addTaskUpdate(taskId, author, message);
+    if (!ok) return NextResponse.json({ error: "Task not found." }, { status: 404 });
 
     return NextResponse.json({ ok: true });
   } catch {

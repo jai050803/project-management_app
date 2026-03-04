@@ -1,9 +1,9 @@
 "use client";
 
-import { TaskPriority, TaskStatus } from "@prisma/client";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { TaskPriority, TaskStatus } from "@/lib/types";
 
 type Member = {
   id: string;

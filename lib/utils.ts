@@ -1,5 +1,5 @@
-import { TaskStatus } from "@prisma/client";
 import { addDays, differenceInCalendarDays, format } from "date-fns";
+import { TaskStatus } from "@/lib/types";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 

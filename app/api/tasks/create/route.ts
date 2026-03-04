@@ -1,6 +1,6 @@
-import { TaskPriority, TaskStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { createTask } from "@/lib/data";
+import { TaskPriority, TaskStatus } from "@/lib/types";
 
 export async function POST(req: Request) {
   try {
@@ -20,25 +20,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
-    const project = await prisma.project.findUnique({ where: { code: projectCode } });
-    if (!project) {
+    const created = createTask({
+      projectCode,
+      title,
+      description,
+      priority,
+      status,
+      deadline: deadline ? deadline.toISOString() : null,
+      assigneeId,
+      progress
+    });
+    if (!created) {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });
     }
-
-    const task = await prisma.task.create({
-      data: {
-        title,
-        description,
-        priority,
-        status,
-        deadline,
-        assigneeId,
-        progress: Math.max(0, Math.min(100, progress)),
-        projectId: project.id
-      }
-    });
-
-    return NextResponse.json({ taskId: task.id });
+    return NextResponse.json(created);
   } catch {
     return NextResponse.json({ error: "Unable to create task." }, { status: 500 });
   }

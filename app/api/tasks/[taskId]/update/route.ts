@@ -1,6 +1,6 @@
-import { TaskPriority, TaskStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { updateTask } from "@/lib/data";
+import { TaskPriority, TaskStatus } from "@/lib/types";
 
 type Params = { params: Promise<{ taskId: string }> };
 
@@ -33,10 +33,13 @@ export async function PATCH(req: Request, { params }: Params) {
       data.deadline = body.deadline ? new Date(String(body.deadline)) : null;
     }
 
-    await prisma.task.update({
-      where: { id: taskId },
-      data
+    const ok = updateTask(taskId, {
+      ...data,
+      deadline: data.deadline ? data.deadline.toISOString() : data.deadline ?? undefined
     });
+    if (!ok) {
+      return NextResponse.json({ error: "Task not found." }, { status: 404 });
+    }
 
     return NextResponse.json({ ok: true });
   } catch {
