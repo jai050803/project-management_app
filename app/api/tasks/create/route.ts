@@ -20,7 +20,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
-    const created = createTask({
+    const created = await createTask({
       projectCode,
       title,
       description,

@@ -1,125 +1,277 @@
 import { generateProjectCode } from "@/lib/utils";
-import {
-  Attachment,
-  Member,
-  Project,
-  ProjectWithMembersAndTasks,
-  Task,
-  TaskPriority,
-  TaskStatus,
-  TaskUpdate
-} from "@/lib/types";
+import { Attachment, Member, ProjectWithMembersAndTasks, Task, TaskPriority, TaskStatus, TaskUpdate } from "@/lib/types";
 
-type Store = {
-  projects: Project[];
-  members: Member[];
-  tasks: Task[];
-  attachments: Attachment[];
-  updates: TaskUpdate[];
+type DbProject = {
+  id: string;
+  name: string;
+  code: string;
+  created_at: string;
 };
 
-declare global {
-  var __pm_store__: Store | undefined;
-}
+type DbMember = {
+  id: string;
+  name: string;
+  created_at: string;
+  project_id: string;
+};
 
-function nowIso() {
-  return new Date().toISOString();
-}
+type DbTask = {
+  id: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  progress: number;
+  deadline: string | null;
+  notes: string;
+  dependencies: string;
+  created_at: string;
+  updated_at: string;
+  project_id: string;
+  assignee_id: string | null;
+};
+
+type DbAttachment = {
+  id: string;
+  type: string;
+  name: string;
+  url: string;
+  created_at: string;
+  task_id: string;
+};
+
+type DbTaskUpdate = {
+  id: string;
+  author: string;
+  message: string;
+  created_at: string;
+  task_id: string;
+};
 
 function newId() {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return crypto.randomUUID();
 }
 
-function getStore(): Store {
-  if (!global.__pm_store__) {
-    global.__pm_store__ = {
-      projects: [],
-      members: [],
-      tasks: [],
-      attachments: [],
-      updates: []
-    };
+function getSupabaseConfig() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
+    throw new Error("Supabase env missing: set NEXT_PUBLIC_SUPABASE_URL and publishable anon key.");
   }
-  return global.__pm_store__;
+
+  return {
+    restUrl: `${url.replace(/\/$/, "")}/rest/v1`,
+    key
+  };
 }
 
-export function createProject(projectName: string, memberName: string) {
-  const store = getStore();
+async function supabaseRequest<T>({
+  path,
+  method = "GET",
+  query,
+  body,
+  prefer
+}: {
+  path: string;
+  method?: "GET" | "POST" | "PATCH";
+  query?: Record<string, string>;
+  body?: unknown;
+  prefer?: string;
+}): Promise<T> {
+  const { restUrl, key } = getSupabaseConfig();
+  const params = new URLSearchParams(query ?? {});
+  const url = `${restUrl}/${path}${params.toString() ? `?${params.toString()}` : ""}`;
+
+  const res = await fetch(url, {
+    method,
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      ...(prefer ? { Prefer: prefer } : {})
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Supabase request failed (${res.status}): ${text}`);
+  }
+
+  const raw = await res.text();
+  return (raw ? JSON.parse(raw) : null) as T;
+}
+
+function mapMember(row: DbMember): Member {
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
+    projectId: row.project_id
+  };
+}
+
+function mapTask(row: DbTask): Task {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    status: row.status,
+    priority: row.priority,
+    progress: row.progress,
+    deadline: row.deadline,
+    notes: row.notes,
+    dependencies: row.dependencies,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    projectId: row.project_id,
+    assigneeId: row.assignee_id
+  };
+}
+
+function mapAttachment(row: DbAttachment): Attachment {
+  return {
+    id: row.id,
+    type: row.type,
+    name: row.name,
+    url: row.url,
+    createdAt: row.created_at,
+    taskId: row.task_id
+  };
+}
+
+function mapTaskUpdate(row: DbTaskUpdate): TaskUpdate {
+  return {
+    id: row.id,
+    author: row.author,
+    message: row.message,
+    createdAt: row.created_at,
+    taskId: row.task_id
+  };
+}
+
+async function findProjectByCode(code: string): Promise<DbProject | null> {
+  const rows = await supabaseRequest<DbProject[]>({
+    path: "projects",
+    query: {
+      select: "*",
+      code: `eq.${code}`,
+      limit: "1"
+    }
+  });
+  return rows[0] ?? null;
+}
+
+export async function createProject(projectName: string, memberName: string) {
   let code = generateProjectCode();
-  while (store.projects.some((p) => p.code === code)) {
+  for (let i = 0; i < 10; i += 1) {
+    const exists = await findProjectByCode(code);
+    if (!exists) break;
     code = generateProjectCode();
   }
 
   const projectId = newId();
   const memberId = newId();
-  const createdAt = nowIso();
+  const now = new Date().toISOString();
 
-  store.projects.push({
-    id: projectId,
-    name: projectName,
-    code,
-    createdAt
+  await supabaseRequest<DbProject[]>({
+    path: "projects",
+    method: "POST",
+    prefer: "return=representation",
+    body: [{ id: projectId, name: projectName, code, created_at: now }]
   });
-  store.members.push({
-    id: memberId,
-    name: memberName,
-    projectId,
-    createdAt
+
+  await supabaseRequest<DbMember[]>({
+    path: "members",
+    method: "POST",
+    prefer: "return=representation",
+    body: [{ id: memberId, name: memberName, project_id: projectId, created_at: now }]
   });
 
   return { projectCode: code, projectId, memberId };
 }
 
-export function joinProject(code: string, memberName: string) {
-  const store = getStore();
-  const project = store.projects.find((p) => p.code === code);
+export async function joinProject(code: string, memberName: string) {
+  const project = await findProjectByCode(code);
   if (!project) return null;
 
-  const existingMember = store.members.find(
-    (m) => m.projectId === project.id && m.name.toLowerCase() === memberName.toLowerCase()
-  );
-  if (existingMember) {
-    return { projectCode: project.code, projectId: project.id, memberId: existingMember.id };
+  const members = await supabaseRequest<DbMember[]>({
+    path: "members",
+    query: {
+      select: "*",
+      project_id: `eq.${project.id}`
+    }
+  });
+
+  const existing = members.find((m) => m.name.toLowerCase() === memberName.toLowerCase());
+  if (existing) {
+    return { projectCode: project.code, projectId: project.id, memberId: existing.id };
   }
 
   const memberId = newId();
-  store.members.push({
-    id: memberId,
-    name: memberName,
-    projectId: project.id,
-    createdAt: nowIso()
+  await supabaseRequest<DbMember[]>({
+    path: "members",
+    method: "POST",
+    prefer: "return=representation",
+    body: [
+      {
+        id: memberId,
+        name: memberName,
+        project_id: project.id,
+        created_at: new Date().toISOString()
+      }
+    ]
   });
 
   return { projectCode: project.code, projectId: project.id, memberId };
 }
 
-export function getProjectByCode(code: string): ProjectWithMembersAndTasks | null {
-  const store = getStore();
-  const project = store.projects.find((p) => p.code === code);
+export async function getProjectByCode(code: string): Promise<ProjectWithMembersAndTasks | null> {
+  const project = await findProjectByCode(code);
   if (!project) return null;
 
-  const members = store.members.filter((m) => m.projectId === project.id);
-  const tasks = store.tasks
-    .filter((t) => t.projectId === project.id)
-    .sort((a, b) => {
-      if (a.status !== b.status) return a.status.localeCompare(b.status);
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  const [memberRows, taskRows] = await Promise.all([
+    supabaseRequest<DbMember[]>({
+      path: "members",
+      query: {
+        select: "*",
+        project_id: `eq.${project.id}`
+      }
+    }),
+    supabaseRequest<DbTask[]>({
+      path: "tasks",
+      query: {
+        select: "*",
+        project_id: `eq.${project.id}`,
+        order: "status.asc,created_at.desc"
+      }
     })
-    .map((t) => ({
-      ...t,
-      assignee: members.find((m) => m.id === t.assigneeId) ?? null
-    }));
+  ]);
+
+  const members = memberRows.map(mapMember);
+  const memberById = new Map(members.map((m) => [m.id, m]));
+  const tasks = taskRows.map((row) => {
+    const task = mapTask(row);
+    return {
+      ...task,
+      assignee: task.assigneeId ? memberById.get(task.assigneeId) ?? null : null
+    };
+  });
 
   return {
-    ...project,
+    id: project.id,
+    name: project.name,
+    code: project.code,
+    createdAt: project.created_at,
     members,
     tasks
   };
 }
 
-export function createTask(input: {
+export async function createTask(input: {
   projectCode: string;
   title: string;
   description: string;
@@ -129,93 +281,156 @@ export function createTask(input: {
   deadline: string | null;
   progress: number;
 }) {
-  const store = getStore();
-  const project = store.projects.find((p) => p.code === input.projectCode);
+  const project = await findProjectByCode(input.projectCode);
   if (!project) return null;
 
-  const id = newId();
-  const timestamp = nowIso();
-  store.tasks.push({
-    id,
-    title: input.title,
-    description: input.description,
-    priority: input.priority,
-    status: input.status,
-    assigneeId: input.assigneeId,
-    deadline: input.deadline,
-    progress: Math.max(0, Math.min(100, input.progress)),
-    notes: "",
-    dependencies: "",
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    projectId: project.id
+  const taskId = newId();
+  const now = new Date().toISOString();
+
+  await supabaseRequest<DbTask[]>({
+    path: "tasks",
+    method: "POST",
+    prefer: "return=representation",
+    body: [
+      {
+        id: taskId,
+        project_id: project.id,
+        title: input.title,
+        description: input.description,
+        priority: input.priority,
+        status: input.status,
+        assignee_id: input.assigneeId,
+        deadline: input.deadline,
+        progress: Math.max(0, Math.min(100, input.progress)),
+        notes: "",
+        dependencies: "",
+        created_at: now,
+        updated_at: now
+      }
+    ]
   });
 
-  return { taskId: id };
+  return { taskId };
 }
 
-export function updateTask(taskId: string, data: Partial<Task>) {
-  const store = getStore();
-  const task = store.tasks.find((t) => t.id === taskId);
-  if (!task) return false;
+export async function updateTask(taskId: string, data: Partial<Task>) {
+  const patch: Record<string, string | number | null> = {
+    updated_at: new Date().toISOString()
+  };
 
-  if (data.status !== undefined) task.status = data.status;
-  if (data.priority !== undefined) task.priority = data.priority;
-  if (data.progress !== undefined) task.progress = Math.max(0, Math.min(100, data.progress));
-  if (data.assigneeId !== undefined) task.assigneeId = data.assigneeId;
-  if (data.notes !== undefined) task.notes = data.notes;
-  if (data.dependencies !== undefined) task.dependencies = data.dependencies;
-  if (data.deadline !== undefined) task.deadline = data.deadline;
-  task.updatedAt = nowIso();
-  return true;
-}
+  if (data.status !== undefined) patch.status = data.status;
+  if (data.priority !== undefined) patch.priority = data.priority;
+  if (data.progress !== undefined) patch.progress = Math.max(0, Math.min(100, data.progress));
+  if (data.assigneeId !== undefined) patch.assignee_id = data.assigneeId;
+  if (data.notes !== undefined) patch.notes = data.notes;
+  if (data.dependencies !== undefined) patch.dependencies = data.dependencies;
+  if (data.deadline !== undefined) patch.deadline = data.deadline;
 
-export function addTaskUpdate(taskId: string, author: string, message: string) {
-  const store = getStore();
-  const task = store.tasks.find((t) => t.id === taskId);
-  if (!task) return false;
-  store.updates.push({
-    id: newId(),
-    author,
-    message,
-    taskId,
-    createdAt: nowIso()
+  const rows = await supabaseRequest<DbTask[]>({
+    path: "tasks",
+    method: "PATCH",
+    query: {
+      id: `eq.${taskId}`,
+      select: "id"
+    },
+    prefer: "return=representation",
+    body: patch
   });
-  return true;
+
+  return rows.length > 0;
 }
 
-export function addTaskAttachment(taskId: string, type: string, name: string, url: string) {
-  const store = getStore();
-  const task = store.tasks.find((t) => t.id === taskId);
-  if (!task) return false;
-  store.attachments.push({
-    id: newId(),
-    type,
-    name,
-    url,
-    taskId,
-    createdAt: nowIso()
+export async function addTaskUpdate(taskId: string, author: string, message: string) {
+  const rows = await supabaseRequest<DbTaskUpdate[]>({
+    path: "task_updates",
+    method: "POST",
+    query: {
+      select: "id"
+    },
+    prefer: "return=representation",
+    body: [
+      {
+        id: newId(),
+        author,
+        message,
+        task_id: taskId,
+        created_at: new Date().toISOString()
+      }
+    ]
   });
-  return true;
+
+  return rows.length > 0;
 }
 
-export function getTaskDetail(taskId: string) {
-  const store = getStore();
-  const task = store.tasks.find((t) => t.id === taskId);
-  if (!task) return null;
+export async function addTaskAttachment(taskId: string, type: string, name: string, url: string) {
+  const rows = await supabaseRequest<DbAttachment[]>({
+    path: "attachments",
+    method: "POST",
+    query: {
+      select: "id"
+    },
+    prefer: "return=representation",
+    body: [
+      {
+        id: newId(),
+        type,
+        name,
+        url,
+        task_id: taskId,
+        created_at: new Date().toISOString()
+      }
+    ]
+  });
 
-  const attachments = store.attachments
-    .filter((a) => a.taskId === taskId)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  const updates = store.updates
-    .filter((u) => u.taskId === taskId)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  const assignee = task.assigneeId ? store.members.find((m) => m.id === task.assigneeId) ?? null : null;
+  return rows.length > 0;
+}
+
+export async function getTaskDetail(taskId: string) {
+  const taskRows = await supabaseRequest<DbTask[]>({
+    path: "tasks",
+    query: {
+      select: "*",
+      id: `eq.${taskId}`,
+      limit: "1"
+    }
+  });
+  const dbTask = taskRows[0];
+  if (!dbTask) return null;
+
+  const [attachmentsRows, updatesRows, assigneeRows] = await Promise.all([
+    supabaseRequest<DbAttachment[]>({
+      path: "attachments",
+      query: {
+        select: "*",
+        task_id: `eq.${taskId}`,
+        order: "created_at.desc"
+      }
+    }),
+    supabaseRequest<DbTaskUpdate[]>({
+      path: "task_updates",
+      query: {
+        select: "*",
+        task_id: `eq.${taskId}`,
+        order: "created_at.desc"
+      }
+    }),
+    dbTask.assignee_id
+      ? supabaseRequest<DbMember[]>({
+          path: "members",
+          query: {
+            select: "*",
+            id: `eq.${dbTask.assignee_id}`,
+            limit: "1"
+          }
+        })
+      : Promise.resolve([])
+  ]);
 
   return {
-    ...task,
-    assignee,
-    attachments,
-    updates
+    ...mapTask(dbTask),
+    assignee: assigneeRows[0] ? mapMember(assigneeRows[0]) : null,
+    attachments: attachmentsRows.map(mapAttachment),
+    updates: updatesRows.map(mapTaskUpdate)
   };
 }
+

@@ -33,7 +33,7 @@ export async function PATCH(req: Request, { params }: Params) {
       data.deadline = body.deadline ? new Date(String(body.deadline)) : null;
     }
 
-    const ok = updateTask(taskId, {
+    const ok = await updateTask(taskId, {
       ...data,
       deadline: data.deadline ? data.deadline.toISOString() : data.deadline ?? undefined
     });

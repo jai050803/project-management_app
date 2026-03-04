@@ -18,7 +18,7 @@ export async function POST(req: Request, { params }: Params) {
         return NextResponse.json({ error: "Link is required." }, { status: 400 });
       }
 
-      const ok = addTaskAttachment(taskId, "LINK", name, link);
+      const ok = await addTaskAttachment(taskId, "LINK", name, link);
       if (!ok) return NextResponse.json({ error: "Task not found." }, { status: 404 });
 
       return NextResponse.json({ ok: true });
@@ -41,7 +41,7 @@ export async function POST(req: Request, { params }: Params) {
     const base64 = Buffer.from(bytes).toString("base64");
     const dataUrl = `data:${file.type || "application/octet-stream"};base64,${base64}`;
 
-    const ok = addTaskAttachment(taskId, "FILE", file.name, dataUrl);
+    const ok = await addTaskAttachment(taskId, "FILE", file.name, dataUrl);
     if (!ok) return NextResponse.json({ error: "Task not found." }, { status: 404 });
 
     return NextResponse.json({ ok: true });

@@ -14,7 +14,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const project = createProject(projectName, memberName);
+    const project = await createProject(projectName, memberName);
     return NextResponse.json(project);
   } catch (error: unknown) {
     console.error("Project create failed:", error);

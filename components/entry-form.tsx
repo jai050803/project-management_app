@@ -41,6 +41,9 @@ export function EntryForm() {
 
       localStorage.setItem(`member:${data.projectCode}`, data.memberId);
       localStorage.setItem(`memberName:${data.projectCode}`, memberName);
+      if (mode === "create") {
+        alert(`Project created. Share this code with your team: ${data.projectCode}`);
+      }
       router.push(`/project/${data.projectCode}?member=${data.memberId}`);
     } catch {
       setError("Network issue. Please try again.");

@@ -13,10 +13,10 @@ export default async function TaskDetailPage({ params, searchParams }: Params) {
   const code = codeParam.toUpperCase();
   const { member } = await searchParams;
 
-  const project = getProjectByCode(code);
+  const project = await getProjectByCode(code);
   if (!project) notFound();
 
-  const task = getTaskDetail(taskId);
+  const task = await getTaskDetail(taskId);
 
   if (!task || task.projectId !== project.id) {
     notFound();

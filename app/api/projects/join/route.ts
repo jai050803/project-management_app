@@ -16,7 +16,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const joined = joinProject(code, memberName);
+    const joined = await joinProject(code, memberName);
     if (!joined) {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });
     }

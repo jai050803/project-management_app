@@ -14,7 +14,7 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Author and message required." }, { status: 400 });
     }
 
-    const ok = addTaskUpdate(taskId, author, message);
+    const ok = await addTaskUpdate(taskId, author, message);
     if (!ok) return NextResponse.json({ error: "Task not found." }, { status: 404 });
 
     return NextResponse.json({ ok: true });

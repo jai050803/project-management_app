@@ -13,7 +13,7 @@ export default async function ProjectPage({ params, searchParams }: Params) {
   const code = codeParam.toUpperCase();
   const { member } = await searchParams;
 
-  const project = getProjectByCode(code);
+  const project = await getProjectByCode(code);
 
   if (!project) {
     notFound();
