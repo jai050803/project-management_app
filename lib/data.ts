@@ -19,7 +19,6 @@ type Store = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var __pm_store__: Store | undefined;
 }
 
@@ -220,4 +219,3 @@ export function getTaskDetail(taskId: string) {
     updates
   };
 }
-
